@@ -108,7 +108,7 @@ def process_msg_data(msg_df, user_df, channel_df):
     msg_df = msg_df.merge(channel_df[['channel_id','channel_name','created_at']], how='left',on='channel_id')
     ## Format datetime cols
     msg_df['created_at'] = msg_df['created_at'].dt.strftime('%Y-%m-%d')
-    msg_df['msg_date'] = msg_df['msg_ts'].dt.strftime('%a')   #date in month
+    msg_df['msg_date'] = msg_df['msg_ts'].dt.strftime('%Y-%m-%d')
     msg_df['msg_time'] = msg_df['msg_ts'].dt.strftime('%H:%M')
     msg_df['wordcount'] = msg_df.text.apply(lambda s: len(s.split()))
     return msg_df
@@ -121,76 +121,77 @@ msg_df = load_msg_dict()
 
 #st.write(process_msg_data(msg_df, user_df, channel_df))
 
-## Submission
-submit_df = process_msg_data[process_msg_data.channel_name.str.contains('assignment')]
-submit_df = submit_df[submit_df.DataCracy_role.str.contains('Learner')]
 
-### % review
-submit_num = submit_df.groupby('user_id')['user_id'].count()
-review_num = submit_df.groupby('user_id')[submit_df.reply_user_count > 0].count()
-review_rate = 100*review_num/submit_num
-
-### total workcount
-workcount_num = submit_df.groupby('user_id')['wordcount'].sum()
+# Input
+st.sidebar.markdown('## Thông tin')
+user_id = st.sidebar.text_input("Nhập Mã Số Người Dùng", 'U01xxxx')
 
 
+valid_user_id = user_df['user_id'].str.contains(user_id).any()
+if valid_user_id:
+    filter_user_df = user_df[user_df.user_id == user_id] ## dis = display =]]
+    filter_msg_df = msg_df[(msg_df.user_id == user_id) | (msg_df.reply_user1 == user_id) | (msg_df.reply_user2 == user_id)]
+    p_msg_df = process_msg_data(filter_msg_df, user_df, channel_df)
 
+    ## Submission
+    submit_df = p_msg_df[p_msg_df.channel_name.str.contains('assignment')]
+    submit_df = submit_df[submit_df.DataCracy_role.str.contains('Learner')]
+    submit_df = submit_df[submit_df.user_id == user_id]
+    latest_ts = submit_df.groupby(['channel_name', 'user_id']).msg_ts.idxmax() ## -> Latest ts
+    submit_df = submit_df.loc[latest_ts]
+    dis_cols1 = ['channel_name', 'created_at','msg_date','msg_time','reply_user_count', 'reply1_name']
+    
+    # Review
+    review_df = p_msg_df[p_msg_df.user_id != user_id] ##-> Remove the case self-reply
+    review_df = review_df[review_df.channel_name.str.contains('assignment')]
+    review_df = review_df[review_df.DataCracy_role.str.contains('Learner')]
+    dis_cols2 = ['channel_name', 'created_at','msg_date','msg_time','reply_user_count','submit_name']
+    
+    ## Discussion
+    discuss_df = p_msg_df[p_msg_df.channel_name.str.contains('discuss')]
+    discuss_df = discuss_df.sort_values(['msg_date','msg_time'])
+    dis_cols3 = ['channel_name','msg_date', 'msg_time','wordcount','reply_user_count','reply1_name']
+    
+    st.markdown('Hello **{}**!'.format(list(filter_user_df['real_name'])[0]))
+    st.write(filter_user_df)
+    st.markdown('## Lịch sử Nộp Assignment')
+    st.write(submit_df[dis_cols1])
+    st.markdown('## Lịch sử Review Assignment')
+    st.write(review_df[dis_cols2])
+    st.markdown('## Lịch sử Discussion')
+    st.write(discuss_df[dis_cols3])
 
-# submit_df = submit_df.groupby([ 'user_id'])
-# submit_df = submit_df.loc[latest_ts]
-# dis_cols1 = ['channel_name', 'created_at','msg_date','msg_time','reply_user_count', 'reply1_name']
+    # Number cards on Sidebar
+    st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
+    <div class="card-body">
+    <h5 class="card-title">ĐÃ NỘP</h5>
+    <p class="card-text">{len(submit_df):02d}</p>
+    </div>
+    </div>''', unsafe_allow_html=True)
 
-# # Review
-# review_df = p_msg_df[p_msg_df.user_id != user_id] ##-> Remove the case self-reply
-# review_df = review_df[review_df.channel_name.str.contains('assignment')]
-# review_df = review_df[review_df.DataCracy_role.str.contains('Learner')]
-# dis_cols2 = ['channel_name', 'created_at','msg_date','msg_time','reply_user_count','submit_name']
+    review_cnt = 100 * len(submit_df[submit_df.reply_user_count > 0])/len(submit_df) if len(submit_df) > 0  else 0
+    st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
+    <div class="card-body">
+    <h5 class="card-title">ĐƯỢC REVIEW</h5>
+    <p class="card-text">{review_cnt:.0f}%</p>
+    </div>
+    </div>''', unsafe_allow_html=True)
 
-# ## Discussion
-# discuss_df = p_msg_df[p_msg_df.channel_name.str.contains('discuss')]
-# discuss_df = discuss_df.sort_values(['msg_date','msg_time'])
-# dis_cols3 = ['channel_name','msg_date', 'msg_time','wordcount','reply_user_count','reply1_name']
+    st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
+    <div class="card-body">
+    <h5 class="card-title">ĐÃ REVIEW</h5>
+    <p class="card-text">{len(review_df):02d}</p>
+    </div>
+    </div>''', unsafe_allow_html=True)
 
-st.markdown('Hello **{}**!'.format(list(filter_user_df['real_name'])[0]))
-st.write(filter_user_df)
-st.markdown('## Lịch sử Nộp Assignment')
-st.write(submit_df[dis_cols1])
-st.markdown('## Lịch sử Review Assignment')
-st.write(review_df[dis_cols2])
-st.markdown('## Lịch sử Discussion')
-st.write(discuss_df[dis_cols3])
-
-# Number cards on Sidebar
-st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
-<div class="card-body">
-<h5 class="card-title">ĐÃ NỘP</h5>
-<p class="card-text">{len(submit_df):02d}</p>
-</div>
-</div>''', unsafe_allow_html=True)
-
-review_cnt = 100 * len(submit_df[submit_df.reply_user_count > 0])/len(submit_df) if len(submit_df) > 0  else 0
-st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
-<div class="card-body">
-<h5 class="card-title">ĐƯỢC REVIEW</h5>
-<p class="card-text">{review_cnt:.0f}%</p>
-</div>
-</div>''', unsafe_allow_html=True)
-
-st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
-<div class="card-body">
-<h5 class="card-title">ĐÃ REVIEW</h5>
-<p class="card-text">{len(review_df):02d}</p>
-</div>
-</div>''', unsafe_allow_html=True)
-
-st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
-<div class="card-body">
-<h5 class="card-title">THẢO LUẬN</h5>
-<p class="card-text">{sum(discuss_df['wordcount']):,d} chữ</p>
-</div>
-</div>''', unsafe_allow_html=True)
-
+    st.sidebar.markdown(f'''<div class="card text-info bg-info mb-3" style="width: 18rem">
+    <div class="card-body">
+    <h5 class="card-title">THẢO LUẬN</h5>
+    <p class="card-text">{sum(discuss_df['wordcount']):,d} chữ</p>
+    </div>
+    </div>''', unsafe_allow_html=True)
+    
 else:
-st.markdown('Không tìm thấy Mã Số {}'.format(user_id))
+    st.markdown('Không tìm thấy Mã Số {}'.format(user_id))
 
 ## Run: streamlit run streamlit/datacracy_slack.py
