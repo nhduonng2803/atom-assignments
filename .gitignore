@@ -1,2 +1,9 @@
 env_variable.json
+<<<<<<< HEAD
 analog-patrol-314318-59f5308f3dfa.json
+atom-assignments/streamlit/env_variable.json
+=======
+data/datacracy_slack
+.vscode
+
+>>>>>>> 864e4787790637495de2bc11fb55440fc7e0102d
